@@ -1,17 +1,38 @@
-use std::io::{self, Read};
-
 use scraper::{Html, Selector};
+use tokio::io::{self as async_io, AsyncReadExt};
+use tokio::time::{self, Duration};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut input = String::new();
+    let timeout_duration = Duration::from_secs(3);
 
-    io::stdin()
-        .read_to_string(&mut input)
-        .expect("Failed to read input");
+    // Set a timeout for reading from stdin
+    let result = time::timeout(
+        timeout_duration,
+        async_io::stdin().read_to_string(&mut input),
+    )
+    .await;
 
-    let document = Html::parse_document(&input);
+    match result {
+        Ok(Ok(_)) => parse_html(&input), // Successfully read input
+        Ok(Err(e)) => println!("Failed to read input: {}", e),
+        Err(_) => {
+            println!(
+                "No input provided within timeout ({} seconds)",
+                timeout_duration.as_secs_f32()
+            );
 
-    if document.tree.nodes().len() == 0 && document.errors.len() > 0 {
+            // Exit program
+            std::process::exit(1);
+        }
+    }
+}
+
+fn parse_html(input: &str) {
+    let document = Html::parse_document(input);
+
+    if document.tree.nodes().len() == 0 && !document.errors.is_empty() {
         println!("Failed to parse HTML, errors: {:?}", document.errors);
 
         return;
